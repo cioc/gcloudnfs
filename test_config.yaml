@@ -1,0 +1,54 @@
+# Copyright 2015 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+imports:
+  - name: deployment_coordinator.jinja
+    path: common/deployment_coordinator.jinja
+  - name: path_utils.jinja
+    path: common/path_utils.jinja
+  - path: singlefs.jinja
+  - path: common/default.py
+    name: default.py
+  - path: common/common.py
+    name: common.py
+  - path: common/vm_instance.py
+    name: vm_instance.py
+  - path: common/password.py
+    name: password.py
+
+resources:
+- name: deployment_coordinator
+  type: deployment_coordinator.jinja
+  properties:
+    package: singlefs
+    zone: us-central1-f
+    network: default
+
+- name: singlefs
+  type: singlefs.jinja
+  properties:
+    instanceName: fileserver
+    machineType: n1-highmem-2
+    storagePoolName: data
+    dataDiskType: pd-standard
+    dataDiskSizeGb: 1000
+    localSSDs: 0
+    zone: us-central1-f
+    network: default
+    bootDiskType: pd-ssd
+    bootDiskSizeGb: 10
+    enableNFS: true
+    enableSMB: true
+    fileSystem: ext4
+    adminPassword: password

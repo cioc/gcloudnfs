@@ -1,0 +1,7 @@
+{
+  "defaultDeploymentType": "SINGLE_VM",
+  "templateName": "singlefs",
+  "projectId": "click-to-deploy-images",
+  "imageName": "singlefs-100-1605130944-debian-8-jessie-v20160511",
+  "useSolutionPackage": true
+}

@@ -1,0 +1,127 @@
+# Copyright 2015 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Single Node Filer Server definition
+#
+# Required Cloud resource input parameters:
+#  * instanceName - server hostname
+#  * storagePoolName - name of the ZFS storage pool
+#  * machineType - Compute Engine machine type
+#  * zone - Compute Engine zone for the instance (short name)
+#  * network - Compute Engine network for the instance (full URI)
+#  * bootDiskType - Compute Engine boot disk type for the instance (full URI)
+#  * bootDiskSizeGb - Compute Engine boot disk size in GB
+#  * dataDiskType - Compute Engine storage disk type (full URI)
+#  * dataDiskSizeGb - Compute Engine storage disk size in GB
+#  * localSSDs - number of local SSDs
+
+{% set name = env["deployment"] %}
+{% set instanceName = name ~ "-vm" %}
+{% set storagePoolName = properties["storagePoolName"] %}
+{% set machineType = properties["machineType"] %}
+{% set zone = properties["zone"] %}
+{% set network = properties["network"] %}
+{% set bootDiskType = properties["bootDiskType"] %}
+{% set bootDiskSizeGb = properties["bootDiskSizeGb"] %}
+{% set dataDiskType = properties["dataDiskType"] %}
+{% set dataDiskSizeGb = properties["dataDiskSizeGb"] %}
+{% set localSSDs = properties["localSSDs"] %}
+{% set enableNFS = "enable:" ~ properties["enableNFS"] %}
+{% set enableSMB = "enable:" ~ properties["enableSMB"] %}
+{% set fileSystem = properties["fileSystem"] %}
+
+resources:
+- name: generated-password
+  type: password.py
+  properties:
+    length: 14
+    includeSymbols: True
+- name: {{ name }}
+  type: vm_instance.py
+  properties:
+    sourceImage: https://www.googleapis.com/compute/v1/projects/click-to-deploy-images/global/images/singlefs-100-1605130944-debian-8-jessie-v20160511
+    storagePoolName: {{ storagePoolName }}
+    machineType: {{ machineType }}
+    zone: {{ zone }}
+    network: {{ network }}
+    bootDiskType: {{ bootDiskType }}
+    bootDiskSizeGb : {{ bootDiskSizeGb }}
+    disks:
+      - deviceName: {{ instanceName }}-{{ storagePoolName }}
+        boot: false
+        autoDelete: false
+        initializeParams:
+          diskType: {{ dataDiskType }}
+          diskSizeGb: {{ dataDiskSizeGb }}
+    localSSDs: {{ localSSDs }}
+    tags:
+      items:
+      - "singlefs"
+
+    serviceAccounts:
+      - email: default
+        scopes: [
+          # Deployment Manager Read Only scope
+          "https://www.googleapis.com/auth/ndev.cloudman.readonly",
+
+          # Default User Accounts Read Only scope
+          "https://www.googleapis.com/auth/cloud.useraccounts.readonly",
+
+          # Default Cloud Logging scope
+          "https://www.googleapis.com/auth/logging.write",
+
+          # Compute Read Only
+          "https://www.googleapis.com/auth/compute.readonly",
+
+          # Cloud Monitoring
+          "https://www.googleapis.com/auth/monitoring.write",
+
+          # Cloud Storage Read/Write, for backups
+          "https://www.googleapis.com/auth/devstorage.read_write",
+        ]
+    metadata:
+      items:
+      - key: ENABLE_NFS
+        value: {{ enableNFS }}
+      - key: ENABLE_SMB
+        value: {{ enableSMB }}
+      - key: ADMIN_PASSWORD
+        value: "$(ref.generated-password.password)"
+      - key: STORAGE_POOL_NAME
+        value: {{ storagePoolName }}
+      - key: FILE_SYSTEM
+        value: {{ fileSystem }}
+      - key: startup-script
+        value: |
+          #!/bin/sh
+          # This script runs every time the system boots.
+          # 1. First boot: Install software and monitoring.
+          # 2. Second boot: Validate installation. Report success or failure.
+          /opt/c2d/startup-script.sh
+          # 3. Always optimise local ssd performance
+          /opt/c2d/set-interupts.sh
+
+outputs:
+  - name: instanceName
+    value: {{ instanceName }}
+  - name: instanceSelfLink
+    value: "$(ref.{{ instanceName }}.selfLink)"
+  - name: ip
+    value: "$(ref.{{ instanceName }}.networkInterfaces[0].accessConfigs[0].natIP)"
+  - name: password
+    value: "$(ref.generated-password.password)"
+  - name: project
+    value: {{ env["project"] }}
+  - name: x-status-type
+    value: c2d

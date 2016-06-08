@@ -1,0 +1,113 @@
+imports:
+  - name: deployment_coordinator.jinja
+    path: common/deployment_coordinator.jinja
+  - name: path_utils.jinja
+    path: common/path_utils.jinja
+  - path: singlefs.jinja
+  - path: common/default.py
+    name: default.py
+  - path: common/common.py
+    name: common.py
+  - path: common/vm_instance.py
+    name: vm_instance.py
+
+info:
+  version: dmv2
+  title: Click to Deploy Single Node File Server
+
+required:
+    - machineType
+    - storagePoolName
+    - dataDiskType
+    - dataDiskSizeGb
+    - localSSDs
+    - zone
+    - network
+    - enableNFS
+    - enableSMB
+    - fileSystem
+    - bootDiskType
+    - bootDiskSizeGb
+
+properties:
+  zone:
+    type: string
+    default: us-central1-a
+    x-googleProperty:
+      type: GCE_ZONE
+
+  machineType:
+    type: string
+    default: n1-standard-2
+    x-googleProperty:
+      type: GCE_MACHINE_TYPE
+      zoneProperty: zone
+      gceMachineType:
+        minCpu: 1
+        minRamGb: 3.5
+
+  storagePoolName:
+    type: string
+    default: data
+
+  dataDiskType:
+    type: string
+    default: pd-standard
+    x-googleProperty:
+      type: GCE_DISK_TYPE
+      zoneProperty: zone
+
+  dataDiskSizeGb:
+    type: integer
+    default: 1000
+    x-googleProperty:
+      type: GCE_DISK_SIZE
+      gceDiskSize:
+        diskTypeProperty: dataDiskType
+
+  network:
+    type: string
+    description: Network
+    x-googleProperty:
+      type: GCE_NETWORK
+
+  localSSDs:
+    type: integer
+    default: 0
+    enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+
+  enableNFS:
+    type: boolean
+    default: true
+
+  enableSMB:
+    type: boolean
+    default: true
+
+  fileSystem:
+    type: string
+    default: zfs
+    enum:
+      - zfs
+      - ext4
+      - btrfs
+
+  bootDiskType:
+    type: string
+    default: pd-ssd
+    x-googleProperty:
+      type: GCE_DISK_TYPE
+      zoneProperty: zone
+
+  bootDiskSizeGb:
+    type: integer
+    default: 10
+    x-googleProperty:
+      type: GCE_DISK_SIZE
+      gceDiskSize:
+        diskTypeProperty: bootDiskType

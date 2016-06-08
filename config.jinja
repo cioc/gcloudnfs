@@ -1,0 +1,24 @@
+resources: 
+- name: "deployment_coordinator"
+  type: "deployment_coordinator.jinja"
+  properties: 
+    package: "singlefs"
+    zone: {{ properties['zone'] }}
+    network: {{ properties['network'] }}
+- name: "singlefs"
+  type: "singlefs.jinja"
+  properties: 
+    instanceName: "fileserver"
+    machineType: {{ properties['machineType'] }}
+    storagePoolName: {{ properties['storagePoolName'] }}
+    dataDiskType: {{ properties['dataDiskType']}}
+    zone: {{ properties['zone'] }}
+    network: {{ properties['network'] }}
+    bootDiskType: "pd-ssd"
+    fileSystem: "zfs"
+    adminPassword: {{ properties['adminPassword']}}
+    dataDiskSizeGb: {{ properties['dataDiskSizeGb'] }}
+    localSSDs: 0
+    enableNFS: true
+    enableSMB: false
+    bootDiskSizeGb: 10
