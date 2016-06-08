@@ -32,11 +32,11 @@ This server automatically deletes itself when it realizes all other instances ar
 
 From monitor_deployment.sh:
 
-# dc_monitor_deployment
-#
-# Deployment Coordinator driver script that gets the name of the deployment
-# from instance metadata and then calls monitor_deployment.sh on it.
-#
-# Once completed, this Deployment Coordinator deletes itself.
+    # dc_monitor_deployment
+    #
+    # Deployment Coordinator driver script that gets the name of the deployment
+    # from instance metadata and then calls monitor_deployment.sh on it.
+    #
+    # Once completed, this Deployment Coordinator deletes itself.
 
 If you are interested in what the coordinator is doing, ssh on the box and take a look at its start up scripts.
