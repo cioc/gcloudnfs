@@ -1,11 +1,11 @@
 To create an NFS server
 =======================
 
-gcloud deployment-manager deployments create <deployment name> --config config.jinja --properties zone=<str>,machineType=<str>,dataDiskSizeGb=<int>,storagePoolName=<str>,network=<str>,adminPassword=<str>,dataDiskType=<str>
+    gcloud deployment-manager deployments create <deployment name> --config config.jinja --properties zone=<str>,machineType=<str>,dataDiskSizeGb=<int>,storagePoolName=<str>,network=<str>,adminPassword=<str>,dataDiskType=<str>
 
 E.g.
 
-gcloud deployment-manager deployments create test-nfs-deployment --config config.jinja --properties zone=us-east1-c,machineType=n1-highmem-2,dataDiskSizeGb=2000,storagePoolName=seb-test-storage,network=default,adminPassword=highsecuritypassword,dataDiskType=pd-standard
+    gcloud deployment-manager deployments create test-nfs-deployment --config config.jinja --properties zone=us-east1-c,machineType=n1-highmem-2,dataDiskSizeGb=2000,storagePoolName=test-storage-dir,network=default,adminPassword=highsecuritypassword,dataDiskType=pd-standard
 
 Will create an NFS server with hostname test-nfs-deployment-vm
 
@@ -16,12 +16,12 @@ See the docs : https://cloud.google.com/sdk/gcloud/reference/deployment-manager/
 To see the status of a deployment
 =================================
 
-gcloud deployment-manager deployments describe <deployment name>
+    gcloud deployment-manager deployments describe <deployment name>
 
 To delete an NFS server
 =======================
 
-gcloud deployment-manager deployments delete <deployment name>
+    gcloud deployment-manager deployments delete <deployment name>
 
 The Coordinator
 ===============
