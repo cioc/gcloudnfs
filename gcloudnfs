@@ -1,0 +1,204 @@
+#!/usr/bin/python
+
+from googleapiclient import discovery
+from oauth2client.client import GoogleCredentials
+import argparse 
+import sys
+import time
+
+def get_credentials():
+    return GoogleCredentials.get_application_default()
+
+def get_compute(credentials):
+    return discovery.build('compute', 'v1', credentials=credentials)
+
+def fail_if_any_none(msg, params):
+    if any(map(lambda x : x is None, params)):
+        print msg
+        sys.exit(1)  
+
+def get_disk_type(zone, disk_type):
+    return "zones/%s/diskTypes/%s" % (zone, disk_type)
+
+def get_disk_name(project, zone, disk_name):
+    return "projects/%s/zones/%s/disks/%s" % (project, zone, disk_name)
+
+def get_image_family(project, family):
+    return "https://www.googleapis.com/compute/v1/projects/%s/global/images/family/%s" % (project, family)
+
+def get_network_name(project, network):
+    return "projects/%s/global/networks/%s" % (project, network)
+
+def get_machine_type(zone, machine_type):
+    return "zones/%s/machineTypes/%s" % (zone, machine_type)
+
+def get_region(compute, project, zone):
+    return compute.zones().get(project=project, zone=zone).execute()["region"].split("/")[-1]
+
+def get_subnets(compute, project, network):
+    subnets = compute.networks().get(project=project, network=network).execute()["subnetworks"]
+    names = map(lambda subnet : subnet.split("/")[-1], subnets)
+    regions = map(lambda subnet : subnet.split("regions")[1].split("/")[1], subnets)
+    return map(lambda x : {"region" : x[0], "name" : x[1]}, zip(regions, names))
+
+def create_disk(compute, project, zone, data_disk_name, data_disk_type, data_disk_size):
+    fail_if_any_none("create_disk params invalid. ", [compute, project, zone, data_disk_name, data_disk_type, data_disk_size]) 
+    disk = {
+        'name' : data_disk_name,
+        'sizeGb' : data_disk_size,
+        'type' : get_disk_type(zone, data_disk_type)
+    }
+    return compute.disks().insert(project=project, zone=zone, body=disk).execute()
+
+def destroy_disk(compute, project, zone, data_disk_name):
+    fail_if_any_none("destroy_disk params invalid. ", [compute, project, zone, data_disk_name])
+    return compute.disks().delete(project=project, zone=zone, disk=data_disk_name).execute()
+
+def get_cidr_blocks(compute, project, zone, network):
+    # We need to get the CIDR blocks defining the sub networks of the network the NFS server resides in
+    # We'll then make the NFS server available across all the sub networks
+    cidr_blocks = []
+    for subnet in get_subnets(compute, project, network):
+        cidr_blocks.append(compute.subnetworks().get(project=project, region=subnet["region"], subnetwork=subnet["name"]).execute()["ipCidrRange"])
+    return cidr_blocks 
+
+def get_startup_script(cidr_blocks):
+    lines = []
+    lines.append("apt-get update")
+    lines.append("apt-get install -y zfsutils-linux")
+    lines.append("zpool create -f nfs-pool /dev/disk/by-id/google-NfsDataDisk")
+    lines.append("chmod 777 /nfs-pool")
+    lines.append("apt-get install -y nfs-kernel-server")
+
+    # We want zfs to allow nfs access on all the sub networks within our network 
+    lines.append("zfs set sharenfs=" + ",".join(map(lambda cidr : "rw=@%s" % cidr, cidr_blocks)) + ",insecure nfs-pool") 
+
+    # Export file system and allow access on all sub networks
+    lines.append('echo "/nfs-pool 127.0.0.0/8(rw,no_subtree_check) ' + " ".join(map(lambda cidr : "%s(rw,no_subtree_check)" % cidr, cidr_blocks)) + '" >> /etc/exports') 
+
+    # Setup iptable rules to permit traffic from all the sub networks
+    lines.append("iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT")
+    lines.append("iptables -A INPUT -p tcp --dport ssh -j ACCEPT")
+    for cidr in cidr_blocks:
+        lines.append("iptables -A INPUT -s %s -j ACCEPT" % cidr)
+    lines.append("iptables -A INPUT -s 127.0.0.1 -j ACCEPT")
+
+    lines.append("service nfs-kernel-server restart")
+    
+    return "\n".join(lines)
+
+def create_server(compute, project, zone, network, machine_type, server_name, startup_script, data_disk_name):
+    fail_if_any_none("create_server params invalid. ", [compute, project, zone, network, machine_type, server_name, startup_script, data_disk_name])
+    instance = {
+        'name' : server_name,
+        'machineType' : get_machine_type(zone, machine_type),
+        'serviceAccounts' : [{
+            'scopes' : [
+                "https://www.googleapis.com/auth/devstorage.read_only",
+                "https://www.googleapis.com/auth/logging.write",
+                "https://www.googleapis.com/auth/monitoring.write",
+                "https://www.googleapis.com/auth/servicecontrol",
+                "https://www.googleapis.com/auth/service.management"]
+        }],
+        'disks' : [{
+            'deviceName' : server_name,
+            'boot' : True,
+            'autoDelete' : True,
+            'initializeParams': {
+                'diskName' : server_name + "-boot",
+                'sourceImage' : get_image_family("ubuntu-os-cloud", "ubuntu-1604-lts"),
+                'diskSizeGb' : 10,
+                'diskType' : get_disk_type(zone, 'pd-ssd') 
+            }
+        },{
+            'deviceName' : "NfsDataDisk",
+            'autoDelete' : False,
+            'boot' : False, 
+            'source' : get_disk_name(project, zone, data_disk_name)
+        }],
+        'networkInterfaces': [{
+            'network' : get_network_name(project, network),
+            'accessConfigs' : [{
+                'name' : "External Nat",
+                'type' : "ONE_TO_ONE_NAT"
+            }]
+        }],
+        'metadata' : {
+            'items' : [{
+                'key' : 'startup-script',
+                'value' : startup_script 
+            }]
+        }
+    }
+    return compute.instances().insert(project=project, zone=zone, body=instance).execute()
+
+def destroy_server(compute, project, zone, server_name):
+    fail_if_any_none("destroy_server params invalid. ", [compute, project, zone, server_name])
+    return compute.instances().delete(project=project, zone=zone, instance=server_name).execute() 
+
+# From : https://github.com/GoogleCloudPlatform/python-docs-samples/blob/730343e0f6c1ec06ffd3452e7e87070379666e8d/compute/api/create_instance.py
+def wait_for_operation(compute, project, zone, operation):
+    while True:
+        result = compute.zoneOperations().get(
+            project=project,
+            zone=zone,
+            operation=operation).execute()
+
+        if result['status'] == 'DONE':
+            if 'error' in result:
+                raise Exception(result['error'])
+            return result
+
+        time.sleep(1)
+
+def create(project, zone, network, machine_type, server_name, reuse_data_disk, data_disk_name, data_disk_type, data_disk_size):
+    compute = get_compute(get_credentials())
+    
+    if not reuse_data_disk:
+        wait_for_operation(compute, project, zone, create_disk(compute, project, zone, data_disk_name, data_disk_type, data_disk_size)['name'])
+        
+    cidr_blocks = get_cidr_blocks(compute, project, zone, network) 
+    
+    startup_script = get_startup_script(cidr_blocks)
+    wait_for_operation(compute, project, zone, create_server(compute, project, zone, network, machine_type, server_name, startup_script, data_disk_name)['name'])   
+
+def destroy(project, zone, server_name, reuse_data_disk, data_disk_name):
+    compute = get_compute(get_credentials())
+
+    wait_for_operation(compute, project, zone, destroy_server(compute, project, zone, server_name)['name'])
+    
+    if not reuse_data_disk:
+        wait_for_operation(compute, project, zone, destroy_disk(compute, project, zone, data_disk_name)['name'])
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Setup NFS servers on GCP')
+    parser.add_argument('command')
+    parser.add_argument('--project', dest='project', type=str)
+    parser.add_argument('--zone', dest='zone', type=str)
+    parser.add_argument('--network', dest='network', type=str)
+    parser.add_argument('--machine-type', dest='machine_type', type=str)
+    parser.add_argument('--server-name', dest='server_name', type=str)
+    parser.add_argument('--reuse-data-disk', dest='reuse_data_disk', action='store_true', default=False)
+    parser.add_argument('--data-disk-name', dest='data_disk_name', type=str)
+    parser.add_argument('--data-disk-type', dest='data_disk_type', type=str)
+    parser.add_argument('--data-disk-size', dest='data_disk_size', type=str)
+    args = parser.parse_args()
+
+    if args.command == 'create':
+        create(args.project, \
+               args.zone, \
+               args.network, \
+               args.machine_type, \
+               args.server_name, \
+               args.reuse_data_disk, \
+               args.data_disk_name, \
+               args.data_disk_type, \
+               args.data_disk_size)
+    elif args.command == 'destroy':
+        destroy(args.project, \
+                args.zone, \
+                args.server_name, \
+                args.reuse_data_disk, \
+                args.data_disk_name)
+    else:
+        print "No such command %s" % (args.command)

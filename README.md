@@ -1,42 +1,41 @@
+Dependencies
+============
+
+* python gcp sdk (pip install --upgrade google-api-python-client) 
+--> https://cloud.google.com/compute/docs/tutorials/python-guide#cloud-sdk
+ 
 To create an NFS server
 =======================
 
-    gcloud deployment-manager deployments create <deployment name> --config config.jinja --properties zone=<str>,machineType=<str>,dataDiskSizeGb=<int>,storagePoolName=<str>,network=<str>,adminPassword=<str>,dataDiskType=<str>
+    ./gcloudnfs create --project <project> --zone <zone> --network <network> --machine-type <machine-type> --server-name <server-name> --data-disk-name <data-disk-name> --data-disk-type <data-disk-type> --data-disk-size <data-disk-size>
 
-E.g.
+    E.g.
 
-    gcloud deployment-manager deployments create test-nfs-deployment --config config.jinja --properties zone=us-east1-c,machineType=n1-highmem-2,dataDiskSizeGb=2000,storagePoolName=test-storage-dir,network=default,adminPassword=highsecuritypassword,dataDiskType=pd-standard
+    ./gcloudnfs create --project my_project --zone us-east1-c --network default --machine-type n1-standard-1 --server-name test-server --data-disk-name test-data-disk --data-disk-type pd-standard --data-disk-size 2000
 
-Will create an NFS server with hostname test-nfs-deployment-vm
+To destroy an NFS server
+========================
 
-Add the --preview flag to first preview the resources before proceeding.  
+    ./gcloudnfs destroy --project <project> --zone <zone> --network <network> --data-disk-name <data-disk-name> --server-name <server-name>
 
-See the docs : https://cloud.google.com/sdk/gcloud/reference/deployment-manager/deployments/create  
+    E.g.
 
-To see the status of a deployment
-=================================
+    ./gcloudnfs destroy --project my_project --zone us-east1-c --network default --data-disk-name test-data-disk --server-name test-server
 
-    gcloud deployment-manager deployments describe <deployment name>
+Reusing an existing disk
+========================
 
-To delete an NFS server
-=======================
+Passing the --reuse-data-disk flag to the create and destroy commands is necessary to reuse a disk. 
 
-    gcloud deployment-manager deployments delete <deployment name>
+Passing --reuse-data-disk to create causes the command to skip disk creation, instead attaching the existing disk named --data-disk-name to the existing instance.
 
-The Coordinator
-===============
+Passing --reuse-data-disk to destroy causes the command to skip disk destruction, saving the disk for later use.
 
-The NFS server deployment from google creates a coordiantion server to track the deployment.
+Future Performance Improvements
+===============================
 
-This server automatically deletes itself when it realizes all other instances are in a terminal state.
-
-From monitor_deployment.sh:
-
-    # dc_monitor_deployment
-    #
-    # Deployment Coordinator driver script that gets the name of the deployment
-    # from instance metadata and then calls monitor_deployment.sh on it.
-    #
-    # Once completed, this Deployment Coordinator deletes itself.
-
-If you are interested in what the coordinator is doing, ssh on the box and take a look at its start up scripts.
+* Add a dedicated ZIL device.
+* Optimize ARC cache size
+* Add dedicated SSDs for L2ARC cache
+* Add more disks and use striping with parity across the disks. 
+* optimize async write percentages 
