@@ -39,3 +39,4 @@ Future Performance Improvements
 * Add dedicated SSDs for L2ARC cache
 * Add more disks and use striping with parity across the disks. 
 * optimize async write percentages 
+* If NFS is the bottleneck, try optimizations here : http://nfs.sourceforge.net/nfs-howto/ar01s05.html
