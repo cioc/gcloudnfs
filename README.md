@@ -1,8 +1,9 @@
 Dependencies
 ============
 
-* python gcp sdk (pip install --upgrade google-api-python-client) 
---> https://cloud.google.com/compute/docs/tutorials/python-guide#cloud-sdk
+* [python gcp sdk](https://cloud.google.com/compute/docs/tutorials/python-guide#cloud-sdk)
+```pip install --upgrade google-api-python-client 
+``` 
  
 To create an NFS server
 =======================
@@ -25,11 +26,11 @@ To destroy an NFS server
 Reusing an existing disk
 ========================
 
-Passing the --reuse-data-disk flag to the create and destroy commands is necessary to reuse a disk. 
+Passing the `--reuse-data-disk` flag to the create and destroy commands is necessary to reuse a disk. 
 
-Passing --reuse-data-disk to create causes the command to skip disk creation, instead attaching the existing disk named --data-disk-name to the existing instance.
+Passing `--reuse-data-disk` to create causes the command to skip disk creation, instead attaching the existing disk named `--data-disk-name` to the existing instance.
 
-Passing --reuse-data-disk to destroy causes the command to skip disk destruction, saving the disk for later use.
+Passing `--reuse-data-disk` to destroy causes the command to skip disk destruction, saving the disk for later use.
 
 Future Performance Improvements
 ===============================
